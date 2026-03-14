@@ -23,6 +23,9 @@
 # misc
 .DS_Store
 *.pem
+Thumbs.db
+.vscode/
+.idea/
 
 # debug
 npm-debug.log*
@@ -32,6 +35,9 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+.env
+.env.local
+.env.*.local
 
 # vercel
 .vercel
@@ -39,3 +45,29 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Python
+backend/.venv/
+backend/__pycache__/
+backend/**/*.pyc
+backend/.env
+
+# Node / Next
+node_modules/
+.next/
+out/
+dist/
+
+# Logs
+*.log
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Local env files
+.env
+.env.local
+.env.*.local

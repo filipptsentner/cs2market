@@ -1,0 +1,393 @@
+User
+
+type User = {
+  id: string;
+  username: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+CatalogItem
+
+type CatalogItem = {
+  id: string;
+  slug: string;
+  name: string;
+  basePrice: number;
+  condition: "FN" | "MW" | "FT" | "WW" | "BS";
+  imageUrl: string;
+  category: string | null;
+  quality: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+InventoryItem
+
+type InventoryItem = {
+  id: string;
+  userId: string;
+  catalogItemId: string;
+  slug: string;
+  name: string;
+  condition: "FN" | "MW" | "FT" | "WW" | "BS";
+  imageUrl: string;
+  purchasePrice: number | null;
+  source: "seed" | "purchase" | "deposit";
+  status: "available" | "listed";
+  createdAt: string;
+  updatedAt: string;
+};
+
+SellOrder
+
+type SellOrder = {
+  id: string;
+  sellerUserId: string;
+  inventoryItemId: string;
+  catalogItemId: string;
+  itemSlug: string;
+  itemName: string;
+  itemImageUrl: string;
+  condition: "FN" | "MW" | "FT" | "WW" | "BS";
+  price: number;
+  status: "active" | "cancelled" | "filled";
+  createdAt: string;
+  updatedAt: string;
+  cancelledAt: string | null;
+  filledAt: string | null;
+};
+
+Trade
+
+type Trade = {
+  id: string;
+  sellOrderId: string;
+  sellerUserId: string;
+  buyerUserId: string;
+  catalogItemId: string;
+  inventoryItemIdBeforeSale: string;
+  itemSlug: string;
+  itemName: string;
+  itemImageUrl: string;
+  condition: "FN" | "MW" | "FT" | "WW" | "BS";
+  price: number;
+  feePercent: number;
+  feeAmount: number;
+  sellerReceives: number;
+  executedAt: string;
+};
+
+Wallet
+
+type Wallet = {
+  id: string;
+  userId: string;
+  balance: number;
+  currency: "USD";
+  updatedAt: string;
+};
+
+
+WalletTransaction
+
+type WalletTransaction = {
+  id: string;
+  userId: string;
+  walletId: string;
+  type: "purchase_debit" | "sale_credit" | "manual_adjustment";
+  amount: number;
+  currency: "USD";
+  referenceType: "trade" | "admin";
+  referenceId: string | null;
+  description: string;
+  createdAt: string;
+};
+
+
+Не делаем сейчас:
+
+BuyOrder
+EscrowTrade
+SteamAsset
+BotAccount
+WithdrawalRequest
+DepositRequest
+PaymentTransaction
+MarketDepthSnapshot
+WebSocket real-time
+matching engine сложнее, чем “купить конкретный sell order”
+
+
+InventoryItem.status
+"available" | "listed"
+
+
+SellOrder.status
+"active" | "cancelled" | "filled"
+
+
+WalletTransaction.type
+"purchase_debit" | "sale_credit" | "manual_adjustment"
+
+
+
+
+5. Связи между сущностями:
+Основные связи:
+User
+User 1 -> 1 Wallet
+User 1 -> many InventoryItem
+User 1 -> many SellOrder как seller
+User 1 -> many Trade как buyer
+User 1 -> many Trade как seller
+User 1 -> many WalletTransaction
+
+CatalogItem
+CatalogItem 1 -> many InventoryItem
+CatalogItem 1 -> many SellOrder
+CatalogItem 1 -> many Trade
+
+InventoryItem
+принадлежит User
+связан с CatalogItem
+может породить один SellOrder
+после покупки может быть “перевладен” новому пользователю либо закрыт и заменен новым inventory item
+
+SellOrder
+принадлежит seller
+связан с конкретным inventory item
+при покупке порождает Trade
+
+
+
+MVP lifecycle на backend-е
+6.1 Создание ордера
+Вход
+inventoryItemId
+price
+sellerUserId
+Backend делает
+проверяет, что предмет принадлежит пользователю
+проверяет inventory_item.status == available
+создает sell_order(status=active)
+меняет inventory_item.status -> listed
+
+
+6.2 Отмена ордера
+Вход
+orderId
+sellerUserId
+Backend делает
+проверяет владельца ордера
+проверяет status == active
+меняет sell_order.status -> cancelled
+меняет inventory_item.status -> available
+
+
+6.3 Покупка ордера
+Вход
+orderId
+buyerUserId
+Backend делает
+проверяет sell_order.status == active
+проверяет, что buyer не seller
+проверяет достаточность wallet.balance
+считает fee
+списывает деньги у buyer
+зачисляет продавцу sellerReceives
+создает trade
+меняет sell_order.status -> filled
+старый inventory_item выводит из оборота или переводит владельца
+создает новый inventory_item у buyer или переносит ownership
+пишет wallet_transactions обеим сторонам
+
+
+
+. Что хранить в БД в первом MVP
+Я бы сделал 7 таблиц.
+Таблицы
+users
+wallets
+wallet_transactions
+catalog_items
+inventory_items
+sell_orders
+trades
+
+
+
+8. Минимальный API для MVP
+
+Ниже — тот набор endpoint’ов, который реально нужен под текущий фронт.
+8.1 Profile
+GET /api/profile
+Возвращает summary:
+{
+  "user": {
+    "id": "u1",
+    "username": "player1"
+  },
+  "wallet": {
+    "balance": 420.5,
+    "currency": "USD"
+  },
+  "stats": {
+    "activeOrdersCount": 3,
+    "inventoryCount": 12,
+    "salesHistoryCount": 8
+  }
+}
+
+
+8.2 Inventory
+GET /api/inventory
+Возвращает предметы пользователя.
+POST /api/inventory/:inventoryItemId/sell
+Создает sell order.
+
+Request:
+{
+  "price": 72.5
+}
+
+
+
+8.3 Orders
+GET /api/orders
+Возвращает активные ордера пользователя.
+POST /api/orders/:orderId/cancel
+Отменяет ордер.
+
+
+
+8.4 Market catalog
+GET /api/market/items
+Возвращает каталог.
+Поддержка query params:
+search
+sort
+позже condition, quality, category
+
+
+
+8.5 Item page
+GET /api/market/items/:slug
+Возвращает карточку предмета.
+Должен содержать:
+{
+  "item": {},
+  "bestPrice": 65.0,
+  "activeSellOrders": [],
+  "buyOrders": [],
+  "tradeHistory": []
+}
+Для MVP buyOrders можно вернуть пустым массивом.
+
+
+8.6 Buy flow
+POST /api/orders/:orderId/buy
+Покупает конкретный sell order.
+Request:
+{
+  "buyerUserId": "u2"
+}
+На реальном auth userId лучше брать из токена, не из body.
+
+
+8.7 Sales history
+GET /api/profile/sales-history
+История сделок пользователя.
+
+
+9. Что именно фронт должен будет перестать делать локально
+Сейчас это делает store. После бэка это должно уйти на сервер:
+Убрать из фронта как source of truth
+
+inventory
+orders
+salesHistory
+balance
+buyCheapestOrder
+createSellOrder
+cancelOrder
+hydrateFromStorage как основную механику хранения
+
+Фронт должен стать:
+клиентом API
+местом для optimistic/pending UI
+а не местом, где живет бизнес-логика сделки
+
+
+
+10. Что считать границей MVP backend-а
+Вот честная граница:
+MVP backend готов, если:
+пользователь может получить профиль
+увидеть свой инвентарь
+создать sell order
+отменить sell order
+купить active sell order
+увидеть обновленный баланс
+увидеть историю сделок
+открыть item page и увидеть реальные active sell orders по slug
+Этого уже достаточно, чтобы заменить localStorage/store-симуляцию на реальный серверный контур.
+
+
+11. Чего пока не хватает в модели, но можно отложить
+
+Это важно зафиксировать, чтобы не переусложнить:
+Откладываем
+аутентификацию
+seller/buyer reputation
+резервирование средств
+заморозку предметов
+комиссии разных типов
+лимитные buy orders
+real-time обновление стакана
+интеграцию со Steam
+escrow / hold / dispute
+multi-currency
+payout system
+
+
+12. Мой вывод
+
+На этом шаге я бы зафиксировал такой backend MVP core:
+
+Сущности
+User
+Wallet
+WalletTransaction
+CatalogItem
+InventoryItem
+SellOrder
+Trade
+
+Статусы
+InventoryItem.status = available | listed
+SellOrder.status = active | cancelled | filled
+
+Операции
+получить профиль
+получить каталог
+получить карточку предмета
+получить инвентарь
+создать ордер
+отменить ордер
+купить ордер
+получить историю сделок
+Что я бы сделал следующим шагом
+
+Шаг 51 должен быть уже очень прикладным:
+превратить это в конкретную схему БД
+таблицы
+поля
+типы
+индексы
+связи
+ограничения
+какие endpoint’ы к каким таблицам ходят
+То есть уже перейти от доменной модели к Postgres design + API map.
+Если идем дальше по правильной траектории, следующий шаг — именно схема БД MVP.
