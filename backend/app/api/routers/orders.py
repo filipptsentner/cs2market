@@ -1,11 +1,16 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
+from app.api.deps import get_current_user_id
 from app.common.enums import SellOrderSort
 from app.core.db import get_db
-from app.models.dto.orders import SellOrderListResponseDto
+from app.models.dto.orders import (
+    CreateSellOrderRequestDto,
+    CreateSellOrderResponseDto,
+    SellOrderListResponseDto,
+)
 from app.services.orders import OrderService
 
 
@@ -31,4 +36,24 @@ def list_sell_orders(
         sort=sort.value,
         limit=limit,
         offset=offset,
+    )
+
+
+@router.post(
+    "",
+    response_model=CreateSellOrderResponseDto,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_sell_order(
+    payload: CreateSellOrderRequestDto,
+    current_user_id: str = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+) -> CreateSellOrderResponseDto:
+    service = OrderService()
+    return service.create_sell_order(
+        db,
+        user_id=current_user_id,
+        inventory_item_id=str(payload.inventory_item_id),
+        price_amount=payload.price_amount,
+        currency=payload.currency.value,
     )

@@ -96,3 +96,58 @@ class InventoryRepository:
         total = int(total_result.scalar_one())
 
         return items, total
+
+    def get_inventory_item_by_id(
+        self,
+        db: Session,
+        *,
+        inventory_item_id: str,
+    ) -> dict | None:
+        query = text(
+            """
+            select
+                id::text as id,
+                user_id::text as user_id,
+                catalog_item_id::text as catalog_item_id,
+                status,
+                asset_id,
+                class_id,
+                instance_id,
+                price_snapshot,
+                created_at::text as created_at,
+                updated_at::text as updated_at
+            from inventory_items
+            where id = :inventory_item_id
+            """
+        )
+
+        result = db.execute(query, {"inventory_item_id": inventory_item_id}).fetchone()
+        if not result:
+            return None
+
+        return dict(result._mapping)
+
+    def update_inventory_item_status(
+        self,
+        db: Session,
+        *,
+        inventory_item_id: str,
+        status: str,
+    ) -> None:
+        query = text(
+            """
+            update inventory_items
+            set
+                status = :status,
+                updated_at = now()
+            where id = :inventory_item_id
+            """
+        )
+
+        db.execute(
+            query,
+            {
+                "inventory_item_id": inventory_item_id,
+                "status": status,
+            },
+        )

@@ -115,3 +115,81 @@ class OrderRepository:
         total = int(total_result.scalar_one())
 
         return items, total
+
+    def has_active_order_for_inventory_item(
+        self,
+        db: Session,
+        *,
+        inventory_item_id: str,
+    ) -> bool:
+        query = text(
+            """
+            select exists(
+                select 1
+                from sell_orders
+                where inventory_item_id = :inventory_item_id
+                  and status = 'active'
+            )
+            """
+        )
+
+        result = db.execute(
+            query,
+            {"inventory_item_id": inventory_item_id},
+        ).scalar_one()
+
+        return bool(result)
+
+    def create_sell_order(
+        self,
+        db: Session,
+        *,
+        seller_id: str,
+        inventory_item_id: str,
+        price_amount: int,
+        currency: str,
+    ) -> dict:
+        query = text(
+            """
+            insert into sell_orders (
+                id,
+                seller_id,
+                inventory_item_id,
+                price_amount,
+                currency,
+                status,
+                created_at,
+                updated_at
+            )
+            values (
+                gen_random_uuid(),
+                :seller_id,
+                :inventory_item_id,
+                :price_amount,
+                :currency,
+                'active',
+                now(),
+                now()
+            )
+            returning
+                id::text as sell_order_id,
+                seller_id::text as seller_id,
+                inventory_item_id::text as inventory_item_id,
+                price_amount,
+                currency,
+                status,
+                created_at::text as created_at
+            """
+        )
+
+        result = db.execute(
+            query,
+            {
+                "seller_id": seller_id,
+                "inventory_item_id": inventory_item_id,
+                "price_amount": price_amount,
+                "currency": currency,
+            },
+        ).fetchone()
+
+        return dict(result._mapping)

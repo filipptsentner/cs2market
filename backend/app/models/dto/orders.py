@@ -1,4 +1,8 @@
+from uuid import UUID
+
 from pydantic import BaseModel, Field
+
+from app.common.enums import Currency
 
 
 class SellOrderItemDto(BaseModel):
@@ -29,3 +33,19 @@ class SellOrderListResponseDto(BaseModel):
     total: int = Field(..., ge=0)
     limit: int = Field(..., ge=0)
     offset: int = Field(..., ge=0)
+
+
+class CreateSellOrderRequestDto(BaseModel):
+    inventory_item_id: UUID
+    price_amount: int = Field(..., gt=0)
+    currency: Currency
+
+
+class CreateSellOrderResponseDto(BaseModel):
+    sell_order_id: str
+    seller_id: str
+    inventory_item_id: str
+    price_amount: int
+    currency: str
+    status: str
+    created_at: str
